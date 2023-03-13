@@ -1,0 +1,49 @@
+trigger:
+- main
+- infra
+
+pool: Default
+
+variables:
+  isMain: $[eq(variables['Build.SourceBranch'], 'refs/heads/main')]
+
+stages:
+- stage: 'Integracion_Continua'
+  condition: and(succeeded(), eq(variables.isMain, 'true'))
+  jobs:
+  - job: 'CI'
+    variables:
+      - group: SONAR
+    steps:
+      - task: SonarQubePrepare@5
+        inputs:
+          SonarQube: 'SonarQube'
+          scannerMode: 'CLI'
+          configMode: 'manual'
+          cliProjectKey: $(cliProjectKey)
+          cliProjectName: $(cliProjectName)
+          cliSources: '.' 
+
+      - task: SonarQubeAnalyze@5
+
+      - task: SonarQubePublish@5
+        inputs:
+          pollingTimeoutSec: '300'
+
+- stage: 'Despliegue_Continuo'
+  condition: and(succeeded(), eq(variables.isMain, 'true'))
+  jobs:
+  - job: 'CD'
+    variables:
+      - group: AWS
+    steps:
+      - script: |
+          aws --profile dev configure set aws_access_key_id $(aws_access_key_id)
+          aws --profile dev configure set aws_secret_access_key $(aws_secret_access_key)
+          rm ~/.aws/credentials
+      # - script: |
+      #     terraform init
+      #     terraform validate
+      #     terraform apply -auto-approve
+      #   displayName: 'Terraform init validation apply'
+        
